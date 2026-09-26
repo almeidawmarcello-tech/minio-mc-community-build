@@ -1,0 +1,53 @@
+name: Build MinIO Client
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-mc:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout build repository
+        uses: actions/checkout@v4
+        with:
+          path: build-config
+
+      - name: Download official MinIO Client
+        run: |
+          curl -fL \
+            "https://github.com/minio/mc/releases/download/RELEASE.2025-08-13T08-35-41Z/mc.linux-amd64.RELEASE.2025-08-13T08-35-41Z" \
+            -o build-config/mc
+          chmod +x build-config/mc
+          ./build-config/mc --version
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/minio-mc-community
+          tags: |
+            type=raw,value=latest
+            type=sha
+
+      - name: Build and push MinIO Client image
+        uses: docker/build-push-action@v6
+        with:
+          context: build-config
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
